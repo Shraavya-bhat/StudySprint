@@ -48,29 +48,50 @@ themePicker.addEventListener("input", (e) => {
    TASK MANAGEMENT
    ========================================================= */
 
+const API_BASE = 'http://localhost:8080/api';
+
 const taskInput = document.getElementById("taskInput");
 const subjectInput = document.getElementById("subjectInput");
 const addTaskBtn = document.getElementById("addTaskBtn");
 const taskList = document.getElementById("taskList");
 const progressBar = document.getElementById("progressBar");
 
-let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+let tasks = [];
 
-addTaskBtn.addEventListener("click", () => {
+async function loadTasks() {
+  try {
+    const res = await fetch(`${API_BASE}/tasks`);
+    if (!res.ok) throw new Error('Network response was not ok');
+    tasks = await res.json();
+    renderTasks();
+  } catch (err) {
+    console.error('Failed to load tasks', err);
+  }
+}
+
+addTaskBtn.addEventListener("click", async () => {
   if (!taskInput.value || !subjectInput.value) return;
 
-  const newTask = {
-    id: Date.now(),
+  const payload = {
     text: taskInput.value,
     subject: subjectInput.value,
     completed: false
   };
 
-  tasks.push(newTask);
-  localStorage.setItem("tasks", JSON.stringify(tasks));
-  taskInput.value = "";
-  subjectInput.value = "";
-  renderTasks();
+  try {
+    const res = await fetch(`${API_BASE}/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const created = res.ok ? await res.json() : null;
+    tasks.push(created);
+    taskInput.value = "";
+    subjectInput.value = "";
+    renderTasks();
+  } catch (err) {
+    console.error('Create task failed', err);
+  }
 });
 
 function renderTasks() {
@@ -99,21 +120,30 @@ function renderTasks() {
   progressBar.style.width = percent + "%";
 }
 
-function toggleTask(id) {
-  tasks = tasks.map(t =>
-    t.id === id ? { ...t, completed: !t.completed } : t
-  );
-  localStorage.setItem("tasks", JSON.stringify(tasks));
-  renderTasks();
+window.toggleTask = async function (id) {
+  try {
+    const res = await fetch(`${API_BASE}/tasks/${id}/toggle`, { method: 'POST' });
+    const updated = res.ok ? await res.json() : null;
+    tasks = tasks.map(t => (t.id === updated.id ? updated : t));
+    renderTasks();
+  } catch (err) {
+    console.error('Toggle failed', err);
+  }
 }
 
-function deleteTask(id) {
-  tasks = tasks.filter(t => t.id !== id);
-  localStorage.setItem("tasks", JSON.stringify(tasks));
-  renderTasks();
+window.deleteTask = async function (id) {
+  try {
+    const res = await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      tasks = tasks.filter(t => t.id !== id);
+      renderTasks();
+    }
+  } catch (err) {
+    console.error('Delete failed', err);
+  }
 }
 
-renderTasks();
+loadTasks();
 
 /* =========================================================
    POMODORO TIMER + FOCUS MODE
@@ -173,3 +203,8 @@ function resetPomodoro() {
 }
 
 updateTime();
+fetch("http://localhost:8080/api/hello")
+  .then(res => res.text())
+  .then(data => {
+    console.log(data);
+  });
